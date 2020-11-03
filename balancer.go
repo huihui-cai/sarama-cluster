@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	"hash/fnv"
 	"math"
 	"sort"
 
@@ -101,7 +100,7 @@ func reverseStringSlice(s []string) {
 	}
 }
 
-func (info topicInfo) RotateMemberIDs(k uint32) {
+func (info topicInfo) RotateMemberIDs(k int) {
 	s := info.MemberIDs
 	sort.Strings(s)
 	mLen := len(s)
@@ -111,7 +110,7 @@ func (info topicInfo) RotateMemberIDs(k uint32) {
 	}
 
 	// Array will be same after rotating if pos is 0
-	pos := int(k % uint32(mLen))
+	pos := k % mLen
 	if pos == 0 {
 		return
 	}
@@ -120,14 +119,14 @@ func (info topicInfo) RotateMemberIDs(k uint32) {
 	reverseStringSlice(s)
 }
 
-func (info topicInfo) Perform(offset uint32, s Strategy) map[string][]int32 {
+func (info topicInfo) Perform(offset int, s Strategy) map[string][]int32 {
 	if s == StrategyRoundRobin {
 		return info.RoundRobin(offset)
 	}
 	return info.Ranges(offset)
 }
 
-func (info topicInfo) Ranges(k uint32) map[string][]int32 {
+func (info topicInfo) Ranges(k int) map[string][]int32 {
 	info.RotateMemberIDs(k)
 
 	mlen := len(info.MemberIDs)
@@ -146,7 +145,7 @@ func (info topicInfo) Ranges(k uint32) map[string][]int32 {
 	return res
 }
 
-func (info topicInfo) RoundRobin(k uint32) map[string][]int32 {
+func (info topicInfo) RoundRobin(k int) map[string][]int32 {
 	info.RotateMemberIDs(k)
 
 	mlen := len(info.MemberIDs)
@@ -203,19 +202,18 @@ func (r *balancer) Topic(name string, memberID string) error {
 	return nil
 }
 
-func (r *balancer) Rotate(topic string) uint32 {
-	if len(r.topics) <= 1 {
-		return 0
-	}
-	h := fnv.New32a()
-	h.Write([]byte(topic))
-	return h.Sum32()
-}
-
 func (r *balancer) Perform() map[string]map[string][]int32 {
 	res := make(map[string]map[string][]int32, 1)
-	for topic, info := range r.topics {
-		for memberID, partitions := range info.Perform(r.Rotate(topic), r.strategy) {
+	tLen := len(r.topics)
+	topics := make([]string, 0, tLen)
+	for topic, _ := range r.topics {
+		topics = append(topics, topic)
+	}
+	sort.Strings(topics)
+
+	for i, topic := range topics {
+		info := r.topics[topic]
+		for memberID, partitions := range info.Perform(i, r.strategy) {
 			if _, ok := res[memberID]; !ok {
 				res[memberID] = make(map[string][]int32, 1)
 			}
