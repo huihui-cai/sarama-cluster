@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"regexp"
 
-	cluster "github.com/bsm/sarama-cluster"
+	cluster "github.com/huihui-cai/sarama-cluster"
 )
 
 // This example shows how to use the consumer to read messages
