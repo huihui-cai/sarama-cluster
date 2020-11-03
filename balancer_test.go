@@ -100,7 +100,7 @@ var _ = Describe("topicInfo", func() {
 	DescribeTable("Ranges",
 		func(memberIDs []string, partitions []int32, expected map[string][]int32) {
 			info := topicInfo{MemberIDs: memberIDs, Partitions: partitions}
-			Expect(info.Ranges()).To(Equal(expected))
+			Expect(info.Ranges(0)).To(Equal(expected))
 		},
 
 		Entry("three members, three partitions", []string{"M1", "M2", "M3"}, []int32{0, 1, 2}, map[string][]int32{
@@ -126,7 +126,7 @@ var _ = Describe("topicInfo", func() {
 	DescribeTable("RoundRobin",
 		func(memberIDs []string, partitions []int32, expected map[string][]int32) {
 			info := topicInfo{MemberIDs: memberIDs, Partitions: partitions}
-			Expect(info.RoundRobin()).To(Equal(expected))
+			Expect(info.RoundRobin(0)).To(Equal(expected))
 		},
 
 		Entry("three members, three partitions", []string{"M1", "M2", "M3"}, []int32{0, 1, 2}, map[string][]int32{

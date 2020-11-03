@@ -94,15 +94,40 @@ type topicInfo struct {
 	MemberIDs  []string
 }
 
-func (info topicInfo) Perform(s Strategy) map[string][]int32 {
-	if s == StrategyRoundRobin {
-		return info.RoundRobin()
+func reverseStringSlice(s []string) {
+	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+		s[i], s[j] = s[j], s[i]
 	}
-	return info.Ranges()
 }
 
-func (info topicInfo) Ranges() map[string][]int32 {
-	sort.Strings(info.MemberIDs)
+func (info topicInfo) RotateMemberIDs(k int) {
+	s := info.MemberIDs
+	sort.Strings(s)
+	mLen := len(s)
+	// No need to rotate
+	if mLen <= 1 {
+		return
+	}
+
+	// Array will be same after rotating if pos is 0
+	pos := k % mLen
+	if pos == 0 {
+		return
+	}
+	reverseStringSlice(s[0:pos])
+	reverseStringSlice(s[pos:])
+	reverseStringSlice(s)
+}
+
+func (info topicInfo) Perform(offset int, s Strategy) map[string][]int32 {
+	if s == StrategyRoundRobin {
+		return info.RoundRobin(offset)
+	}
+	return info.Ranges(offset)
+}
+
+func (info topicInfo) Ranges(k int) map[string][]int32 {
+	info.RotateMemberIDs(k)
 
 	mlen := len(info.MemberIDs)
 	plen := len(info.Partitions)
@@ -120,8 +145,8 @@ func (info topicInfo) Ranges() map[string][]int32 {
 	return res
 }
 
-func (info topicInfo) RoundRobin() map[string][]int32 {
-	sort.Strings(info.MemberIDs)
+func (info topicInfo) RoundRobin(k int) map[string][]int32 {
+	info.RotateMemberIDs(k)
 
 	mlen := len(info.MemberIDs)
 	res := make(map[string][]int32, mlen)
@@ -154,8 +179,8 @@ func newBalancerFromMeta(client sarama.Client, strategy Strategy, members map[st
 
 func newBalancer(client sarama.Client, strategy Strategy) *balancer {
 	return &balancer{
-		client: client,
-		topics: make(map[string]topicInfo),
+		client:   client,
+		topics:   make(map[string]topicInfo),
 		strategy: strategy,
 	}
 }
@@ -179,8 +204,16 @@ func (r *balancer) Topic(name string, memberID string) error {
 
 func (r *balancer) Perform() map[string]map[string][]int32 {
 	res := make(map[string]map[string][]int32, 1)
-	for topic, info := range r.topics {
-		for memberID, partitions := range info.Perform(r.strategy) {
+	tLen := len(r.topics)
+	topics := make([]string, 0, tLen)
+	for topic, _ := range r.topics {
+		topics = append(topics, topic)
+	}
+	sort.Strings(topics)
+
+	for i, topic := range topics {
+		info := r.topics[topic]
+		for memberID, partitions := range info.Perform(i, r.strategy) {
 			if _, ok := res[memberID]; !ok {
 				res[memberID] = make(map[string][]int32, 1)
 			}
